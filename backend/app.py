@@ -1393,6 +1393,13 @@ def opencitations_health():
 
         }), 500
 
+# ============================================================
+# DSAA DASHBOARD
+# ============================================================
+
+from api.dashboard_routes import dashboard_bp
+
+app.register_blueprint(dashboard_bp)
 
 # ============================================================
 # RUN SERVER

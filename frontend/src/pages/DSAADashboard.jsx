@@ -1,0 +1,28 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
+
+const API = 'http://127.0.0.1:5000';
+const colors = ['#3b82f6','#06b6d4','#8b5cf6','#f59e0b','#10b981','#ec4899'];
+const card = {background:'#fff',border:'1px solid #e2e8f0',borderRadius:16,padding:22,boxShadow:'0 5px 22px #0f172a08'};
+const fmt = n => Number(n||0).toLocaleString();
+export default function DSAADashboard(){
+ const navigate=useNavigate();
+ const [data,setData]=useState(null),[source,setSource]=useState('All'),[year,setYear]=useState('All'),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+ useEffect(()=>{const c=new AbortController();setLoading(true);setError('');
+  const p=new URLSearchParams();if(source!=='All')p.set('source',source);if(year!=='All')p.set('year',year);
+  fetch(`${API}/api/dashboard/overview?${p}`,{signal:c.signal}).then(r=>r.json()).then(r=>{if(!r.success)throw Error(r.error||'Unable to load');setData(r)}).catch(e=>{if(e.name!=='AbortError')setError(e.message)}).finally(()=>{if(!c.signal.aborted)setLoading(false)});
+  return ()=>c.abort();},[source,year]);
+ const sourceData=Object.entries(data?.source_distribution||{}).map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+ const yearData=Object.entries(data?.publication_trends||{}).map(([name,value])=>({name,value})).sort((a,b)=>Number(a.name)-Number(b.name));
+ const missingData=Object.entries(data?.missing_by_column||{}).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([name,value])=>({name,value}));
+ const selectStyle={padding:'11px 14px',border:'1px solid #cbd5e1',borderRadius:9,background:'#fff',minWidth:165};
+ const chart=(title,items,vertical=false)=> <section style={card}><h2 style={{fontSize:17,margin:'0 0 6px'}}>{title}</h2><p style={{fontSize:12,color:'#64748b',margin:'0 0 18px'}}>Based on the selected ResearchIQ records</p><div style={{height:300}}>{items.length?<ResponsiveContainer width="100%" height="100%"><BarChart data={items} layout={vertical?'vertical':'horizontal'} margin={{left:vertical?35:0,right:18,bottom:5}}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0"/>{vertical?<><XAxis type="number"/><YAxis type="category" dataKey="name" width={140} tick={{fontSize:11}}/></>:<><XAxis dataKey="name" tick={{fontSize:11}}/><YAxis allowDecimals={false}/></>}<Tooltip formatter={v=>fmt(v)}/><Bar dataKey="value" radius={vertical?[0,5,5,0]:[5,5,0,0]}>{items.map((r,i)=><Cell key={r.name} fill={colors[i%colors.length]}/>)}</Bar></BarChart></ResponsiveContainer>:<p style={{color:'#64748b'}}>No records for these filters.</p>}</div></section>;
+ return <div style={{minHeight:'100vh',background:'#f1f5f9',fontFamily:'Inter,Arial,sans-serif',color:'#0f172a'}}><div style={{maxWidth:1500,margin:'auto',padding:'28px clamp(16px,3vw,40px)'}}>
+  <nav style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:26}}>{[['Dashboard','/dsaa-dashboard'],['Data Explorer','/dsaa-data-explorer'],['ResearchIQ Home','/']].map(([label,path])=><button key={path} onClick={()=>navigate(path)} style={{...selectStyle,cursor:'pointer',background:path==='/dsaa-dashboard'?'#1d4ed8':'white',color:path==='/dsaa-dashboard'?'white':'#334155'}}>{label}</button>)}</nav>
+  <header style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:20,flexWrap:'wrap',marginBottom:24}}><div><div style={{fontSize:12,fontWeight:700,letterSpacing:2,color:'#2563eb'}}>RESEARCHIQ / DATA INTELLIGENCE</div><h1 style={{margin:'8px 0',fontSize:32}}>DSAA Analytics Dashboard</h1><p style={{margin:0,color:'#64748b'}}>Interactive insights from the fused research dataset</p></div><button onClick={()=>{setSource('All');setYear('All')}} style={{...selectStyle,cursor:'pointer'}}>Reset filters</button></header>
+  <section style={{...card,display:'flex',gap:16,alignItems:'end',flexWrap:'wrap',marginBottom:22}}><label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Data source<select style={selectStyle} value={source} onChange={e=>setSource(e.target.value)}><option>All</option>{(data?.filters?.sources||[]).map(x=><option key={x}>{x}</option>)}</select></label><label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Publication year<select style={selectStyle} value={year} onChange={e=>setYear(e.target.value)}><option>All</option>{(data?.filters?.years||[]).map(x=><option key={x}>{x}</option>)}</select></label><span style={{fontSize:13,color:'#64748b',paddingBottom:12}}>Filters update all metrics and charts</span></section>
+  {error&&<p role="alert" style={{color:'#b91c1c'}}>{error}</p>}{loading&&<p>Updating dashboard…</p>}
+  {data&&<><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:16,marginBottom:22}}>{[['Records',data.total_records],['Dataset columns',data.total_columns],['Duplicate rows',data.duplicate_records],['Empty field values',data.missing_values]].map(([label,value])=><section key={label} style={card}><div style={{fontSize:13,color:'#64748b'}}>{label}</div><div style={{fontSize:31,fontWeight:800,marginTop:10}}>{fmt(value)}</div></section>)}</div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,480px),1fr))',gap:20}}>{chart('Records by source',sourceData,true)}{chart('Publication year trends',yearData)}{chart('Top 10 fields with missing values',missingData,true)}</div><p style={{fontSize:13,color:'#64748b',marginTop:18}}>Interpretation: Missing fields may be expected because the fused dataset contains different research record types. Source counts can exceed record counts when a record lists multiple sources.</p></>}
+ </div></div>
+}
